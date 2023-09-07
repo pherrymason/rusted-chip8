@@ -103,6 +103,7 @@ impl Chip8 {
         let mut i = 0;
         while i <= PROGRAM_SIZE {
             self.memory[PROGRAM_START_LOCATION + i] = program[i];
+            i+= 1;
         }
     }
 
