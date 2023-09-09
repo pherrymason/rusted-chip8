@@ -29,11 +29,10 @@ pub struct Chip8 {
     stack_pointer: u8,
 
     play: bool,
-    clear_screen: bool,
 
     timer_delay: u8,
     timer_sound: u8,
-    rng: ThreadRng
+    rng: ThreadRng,
 }
 
 impl Chip8 {
@@ -44,14 +43,13 @@ impl Chip8 {
             memory: vec![0; PROGRAM_START_LOCATION],
             v: [0; 16],
             address_register: 0,
-            pc: 0,
+            pc: PROGRAM_START_LOCATION as u16,
             stack: Stack::new(),
             stack_pointer: 0,
             play: false,
-            clear_screen: false,
             timer_delay: 0,
             timer_sound: 0,
-            rng: rand::thread_rng()
+            rng: rand::thread_rng(),
         }
     }
 
@@ -146,7 +144,7 @@ impl Chip8 {
                     0x00E0 => self.opcode_clear_screen(),
                     0x00EE => self.return_from_subroutine(),
                     0x00FF => self.set_schip_graphic_mode(),
-                    _ => panic!("unknown opcode")
+                    _ => panic!("Unknown Opcode {}", opcode)
                 }
             }
             0x1000 => self.opcode_jmp(nnn),
@@ -163,27 +161,13 @@ impl Chip8 {
             0xC000 => self.opcode_set_vx_random(x, nn),
             0xD000 => self.opcode_draw(x, y, n),
             0xE000 => {
-                match opcode&0xFF {
-                    0x9E => self.opcode_skip_key_pressed_in_vx(X as usize),
-                    0xA1 => self.opcode_skip_key_not_pressed_in_vx(X as usize),
-                    _ => panic!("Unhandled opcode")
                 match opcode & 0xFF {
                     0x9E => self.opcode_skip_key_pressed_in_vx(x),
                     0xA1 => self.opcode_skip_key_not_pressed_in_vx(x),
+                    _ => panic!("Unknown Opcode {}", opcode)
                 }
             }
             0xF000 => {
-                match opcode &0xFF {
-                    0x07 => self.opcode_save_delay_to_vx(X as usize),
-                    0x0A => self.opcode_wait_key(X as usize),
-                    0x15 => self.opcode_save_vx_to_delay(X as usize),
-                    0x18 => self.opcode_save_vx_to_sound_timer(X as usize),
-                    0x1E => self.opcode_adds_vx_to_i(X as usize),
-                    0x29 => self.opcode_set_i_with_vx(X as usize),
-                    0x33 => self.opcode_save_bin_vx(X as usize),
-                    0x55 => self.opcode_dump_v_to_memory(X as usize),
-                    0x65 => self.opcode_fill_v_with_memory(X as usize),
-                    _ => panic!("Unhandled opcode")
                 match opcode & 0xFF {
                     0x07 => self.opcode_save_delay_to_vx(x),
                     0x0A => self.opcode_wait_key(x),
@@ -194,6 +178,7 @@ impl Chip8 {
                     0x33 => self.opcode_save_bin_vx(x),
                     0x55 => self.opcode_dump_v_to_memory(x),
                     0x65 => self.opcode_fill_v_with_memory(x),
+                    _ => panic!("Unknown Opcode {}", opcode)
                 }
             }
             _ => println!("Unknown Opcode {}", opcode),
