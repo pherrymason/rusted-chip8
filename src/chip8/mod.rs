@@ -189,7 +189,7 @@ impl Chip8 {
     }
 
     fn increment_pc(&mut self) {
-        self.pc += 1;
+        self.pc += 2;
     }
 }
 
