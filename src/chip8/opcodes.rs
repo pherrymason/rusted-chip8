@@ -9,7 +9,6 @@ impl Chip8 {
 
     pub fn return_from_subroutine(&mut self) {
         self.pc = self.stack.pop();
-        self.stack_pointer -= 1;
     }
 
     pub fn set_schip_graphic_mode(&mut self) {}
