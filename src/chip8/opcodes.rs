@@ -4,7 +4,7 @@ use crate::chip8::{V_SIZE};
 
 impl Chip8 {
     pub fn opcode_clear_screen(&mut self) {
-        self.clear_screen = true;
+        self.display.clear();
     }
 
     pub fn return_from_subroutine(&mut self) {
