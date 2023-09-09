@@ -97,7 +97,7 @@ impl Chip8 {
     }
     pub fn opcode_set_vx_random(&mut self, x: usize, nn: u8) {
         let random_number: u8 = self.rng.gen_range(0..=255);
-        self.v[x] = random_number;
+        self.v[x] = random_number & nn;
     }
 
     // Draws a sprite at coordinate (VX,VY) that has a width of 8 pixels and a height of N pixels.
