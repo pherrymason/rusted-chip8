@@ -13,7 +13,7 @@ const NATIVE_SCREEN_HEIGHT: usize = 32;
 impl Display {
     pub fn new() -> Display {
         Display {
-            scale: 3.0,
+            scale: 10.0,
             screen: vec![0; NATIVE_SCREEN_WIDTH * NATIVE_SCREEN_HEIGHT],
         }
     }

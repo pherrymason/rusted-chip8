@@ -9,17 +9,20 @@ impl Chip8 {
 
     pub fn return_from_subroutine(&mut self) {
         self.pc = self.stack.pop();
+        self.skip_increment_pc = true;
     }
 
     pub fn set_schip_graphic_mode(&mut self) {}
 
     pub fn opcode_jmp(&mut self, address: u16) {
         self.pc = address;
+        self.skip_increment_pc = true;
     }
 
     pub fn opcode_call_subroutine(&mut self, address: u16) {
         self.stack.push(self.pc + 2);
         self.pc = address;
+        self.skip_increment_pc = true;
     }
     pub fn opcode_skip_if_vx_equals_nn(&mut self, x: usize, nn: u8) {
         if self.v[x] == nn {
@@ -40,7 +43,7 @@ impl Chip8 {
         self.v[x] = nn;
     }
     pub fn opcode_adds_nn_to_vx(&mut self, x: usize, nn: u8) {
-        self.v[x] = (self.v[x] + nn) & 0xFF;
+        self.v[x] = self.v[x].wrapping_add(nn);
     }
     pub fn opcode_set_vx_to_vy(&mut self, opcode: u16, x: usize, y: usize) {
         match opcode & 0x0F {
@@ -71,11 +74,11 @@ impl Chip8 {
             }
             7 => {
                 // 8XY7	Sets VX to (VY minus VX). VF is set to 0 when there's a borrow, and 1 when there isn't.
-                self.v[0xF] = if self.v[y] < self.v[x] { 0 } else { 1 };
+                self.v[0xF] = if self.v[y] >= self.v[x] { 1 } else { 0 };
                 self.v[x] = self.v[y].wrapping_sub(self.v[x]);
             }
             0xE => {
-                self.v[0xF] = self.v[x] >> 7;
+                self.v[0xF] = (self.v[x] >> 7) & 0x1;
                 self.v[x] <<= 1;
             }
             _ => { panic!("unhandled opcode") }
@@ -86,6 +89,7 @@ impl Chip8 {
     pub fn opcode_skips_if_vx_diffs_vy(&mut self, x: usize, y: usize) {
         if self.v[x] != self.v[y] {
             self.increment_pc();
+            self.skip_increment_pc = true;
         }
     }
     pub fn opcode_set_i_to_nnn(&mut self, nnn: u16) {
@@ -93,6 +97,7 @@ impl Chip8 {
     }
     pub fn opcode_jmp_nnn_plus_v0(&mut self, nnn: u16) {
         self.pc = nnn + (self.v[0] as u16);
+        self.skip_increment_pc = true;
     }
     pub fn opcode_set_vx_random(&mut self, x: usize, nn: u8) {
         let random_number: u8 = self.rng.gen_range(0..=255);
@@ -218,5 +223,328 @@ impl Chip8 {
             i += 1;
         }
         self.address_register += x as u16 + 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn a_chip8() -> Chip8 {
+        Chip8::new()
+    }
+
+    #[test]
+    fn test_0x3xnn_should_skip_next_instruction_when_vx_equals_nn() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 1;
+        let nn = 1;
+
+        emu.opcode_skip_if_vx_equals_nn(0, nn);
+        assert_eq!(emu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_0x3xnn_should_not_skip_instruction_when_vx_differs_nn() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 0;
+        let nn = 1;
+
+        emu.opcode_skip_if_vx_equals_nn(0, nn);
+        assert_eq!(emu.pc, 0x200);
+    }
+
+    #[test]
+    fn test_0x4xnn_should_skip_next_instruction_if_vx_differs_nn() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 0;
+        let nn = 1;
+
+        emu.opcode_skip_if_vx_diffs_nn(0, nn);
+        assert_eq!(emu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_0x4xnn_should_not_skip_next_instruction_if_vx_equals_nn() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 1;
+        let nn = 1;
+
+        emu.opcode_skip_if_vx_diffs_nn(0, nn);
+        assert_eq!(emu.pc, 0x200);
+    }
+
+    #[test]
+    fn test_0x5xy0_should_skip_next_instruction_if_vx_equals_vy() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 1;
+        emu.v[1] = 1;
+
+        emu.opcode_skip_if_vx_equals_vy(0, 1);
+        assert_eq!(emu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_0x5xy0_should_not_skip_next_instruction_if_vx_differs_vy() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 0;
+        emu.v[1] = 1;
+
+        emu.opcode_skip_if_vx_equals_vy(0, 1);
+        assert_eq!(emu.pc, 0x200);
+    }
+
+    #[test]
+    fn test_0x6xnn_should_put_nn_into_vx() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 0;
+
+        emu.opcode_set_vx_to_nn(0, 1);
+        assert_eq!(emu.v[0], 1);
+    }
+
+    #[test]
+    fn test_7xnn_should_add_nn_to_value_vx_and_store_in_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 2;
+        emu.opcode_adds_nn_to_vx(0, 4);
+
+        assert_eq!(emu.v[0], 6);
+    }
+
+    #[test]
+    fn test_7xnn_should_add_nn_to_value_vx_and_store_in_vx_with_wraparound() {
+        let mut emu = a_chip8();
+        emu.v[0] = 255;
+        emu.opcode_adds_nn_to_vx(0, 1);
+
+        assert_eq!(emu.v[0], 0);
+    }
+
+    #[test]
+    fn test_8xy0_should_copy_vy_into_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 20;
+        emu.opcode_set_vx_to_vy(0x8000, 0, 1);
+
+        assert_eq!(emu.v[0], 20);
+    }
+
+    #[test]
+    fn test_8xy1_should_perform_bitwise_or_on_vx_and_vy_and_store_result_in_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0b01;
+        emu.v[1] = 0b10;
+        emu.opcode_set_vx_to_vy(0x8001, 0, 1);
+
+        assert_eq!(emu.v[0], 0b11);
+    }
+
+    #[test]
+    fn test_8xy2_should_perform_bitwise_and_on_vx_and_vy_and_store_result_in_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0b101;
+        emu.v[1] = 0b100;
+        emu.opcode_set_vx_to_vy(0x8002, 0, 1);
+
+        assert_eq!(emu.v[0], 0b100);
+    }
+
+    #[test]
+    fn test_8xy3_should_perform_bitwise_xor_on_vx_and_vy_and_store_result_in_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0b01010;
+        emu.v[1] = 0b01001;
+        emu.opcode_set_vx_to_vy(0x8003, 0, 1);
+
+        assert_eq!(emu.v[0], 0b11);
+    }
+
+    #[test]
+    fn test_8xy4_should_perform_add_on_vx_and_vy_and_store_result_in_vx_without_carry() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 5;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8004, 0, 1);
+
+        assert_eq!(emu.v[0], 15);
+        assert_eq!(emu.v[1], 5, "Vy should keep original value.");
+        assert_eq!(emu.v[0xF], 0, "No carry should have occurred");
+    }
+
+    #[test]
+    fn test_8xy4_should_perform_add_on_vx_and_vy_and_store_result_in_vx_with_carry() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 255;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8004, 0, 1);
+
+        assert_eq!(emu.v[0], 9);
+        assert_eq!(emu.v[1], 255, "Vy should keep original value.");
+        assert_eq!(emu.v[0xF], 1, "Carry should have occurred");
+    }
+
+    #[test]
+    fn test_8xy5_should_perform_subtract_on_vx_and_vy_and_store_result_in_vx_without_borrow() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 6;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8005, 0, 1);
+
+        assert_eq!(emu.v[0], 4);
+        assert_eq!(emu.v[1], 6, "Vy should keep original value.");
+        assert_eq!(emu.v[0xF], 1, "No borrow should have occurred");
+    }
+
+    #[test]
+    fn test_8xy5_should_perform_subtract_on_vx_and_vy_and_store_result_in_vx_with_borrow() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 11;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8005, 0, 1);
+
+        assert_eq!(emu.v[0], 255);
+        assert_eq!(emu.v[1], 11, "Vy should keep original value.");
+        assert_eq!(emu.v[0xF], 0, "Borrow should have occurred");
+    }
+
+    #[test]
+    fn test_8xy5_should_perform_subtract_on_vx_and_vy_and_store_result_in_zero_without_borrow() {
+        let mut emu = a_chip8();
+        emu.v[0] = 11;
+        emu.v[1] = 11;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8005, 0, 1);
+
+        assert_eq!(emu.v[0], 0);
+        assert_eq!(emu.v[1], 11, "Vy should keep original value.");
+        assert_eq!(emu.v[0xF], 1, "No borrow should have occurred");
+    }
+
+    #[test]
+    fn test_8xy6_should_set_vf_to_1_when_least_significant_bit_is_1_and_divide_by_2() {
+        let mut emu = a_chip8();
+        emu.v[0] = 11;
+        emu.v[0xF] = 1;
+        emu.opcode_set_vx_to_vy(0x8006, 0, 1);
+
+        assert_eq!(emu.v[0], 11>>1);
+        assert_eq!(emu.v[0xF], 1, "Flag should be enabled");
+    }
+
+    #[test]
+    fn test_8xy6_should_not_set_vf_to_1_when_least_significant_bit_is_1_and_divide_by_2() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[0xF] = 1;
+        emu.opcode_set_vx_to_vy(0x8006, 0, 1);
+
+        assert_eq!(emu.v[0], 11>>1);
+        assert_eq!(emu.v[0xF], 0, "Flag should be disabled");
+    }
+
+    #[test]
+    fn test_8xy7_should_substract_vy_minus_vx_and_flag_borrow() {
+        let mut emu = a_chip8();
+        emu.v[0] = 6;
+        emu.v[1] = 10;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8007, 0, 1);
+
+        assert_eq!(emu.v[0], 4);
+        assert_eq!(emu.v[1], 10);
+        assert_eq!(emu.v[0xF], 1, "Flag should be disabled");
+    }
+
+    #[test]
+    fn test_8xy7_should_substract_vy_minus_vx_and_unflag_borrow() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 6;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8007, 0, 1);
+
+        assert_eq!(emu.v[0], 252);
+        assert_eq!(emu.v[1], 6);
+        assert_eq!(emu.v[0xF], 0, "Flag should be disabled");
+    }
+
+    #[test]
+    fn test_8xy7_should_substract_vy_minus_vx_result_0_and_flag_borrow() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 10;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x8007, 0, 1);
+
+        assert_eq!(emu.v[0], 0);
+        assert_eq!(emu.v[1], 10);
+        assert_eq!(emu.v[0xF], 1, "Flag should be disabled");
+    }
+
+    #[test]
+    fn test_8xye_should_set_vf_to_1_when_most_significant_bit_of_vx_is_1_and_multiply_by_2() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0b10000001;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x800E, 0, 0);
+
+        assert_eq!(emu.v[0], 2);
+        assert_eq!(emu.v[0xF], 1, "Flag should be enabled");
+    }
+
+    #[test]
+    fn test_8xye_should_not_set_vf_to_1_when_most_significant_bit_of_vx_is_0_and_multiply_by_2() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0b00000001;
+        emu.v[0xF] = 0;
+        emu.opcode_set_vx_to_vy(0x800E, 0, 0);
+
+        assert_eq!(emu.v[0], 2);
+        assert_eq!(emu.v[0xF], 0, "Flag should be enabled");
+    }
+
+    #[test]
+    fn test_9xy0_should_skip_next_instruction_if_vx_differs_from_vy() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 9;
+        emu.pc = 0x200;
+        emu.opcode_skips_if_vx_diffs_vy(0, 1);
+
+        assert_eq!(emu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_9xy0_should_not_skip_next_instruction_if_vx_equals_vy() {
+        let mut emu = a_chip8();
+        emu.v[0] = 10;
+        emu.v[1] = 10;
+        emu.pc = 0x200;
+        emu.opcode_skips_if_vx_diffs_vy(0, 1);
+
+        assert_eq!(emu.pc, 0x200);
+    }
+
+    #[test]
+    fn test_annn_should_set_i_to_nnn() {
+        let mut emu = a_chip8();
+        emu.address_register = 0;
+
+        emu.opcode_set_i_to_nnn(0xFFF);
+
+        assert_eq!(emu.address_register, 0xFFF);
     }
 }

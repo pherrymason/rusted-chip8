@@ -12,7 +12,7 @@ impl Keypad {
     }
 }
 
-const STACK_SIZE: usize = 200;
+const STACK_SIZE: usize = 16;
 const MEMORY_SIZE: usize = 4096;
 const V_SIZE: usize = 16;
 const PROGRAM_START_LOCATION: usize = 0x200;
@@ -29,6 +29,7 @@ pub struct Chip8 {
     stack_pointer: u8,
 
     play: bool,
+    skip_increment_pc: bool,
 
     timer_delay: u8,
     timer_sound: u8,
@@ -47,6 +48,7 @@ impl Chip8 {
             stack: Stack::new(),
             stack_pointer: 0,
             play: false,
+            skip_increment_pc: false,
             timer_delay: 0,
             timer_sound: 0,
             rng: rand::thread_rng(),
@@ -134,11 +136,11 @@ impl Chip8 {
     }
 
     fn execute_operation(&mut self, opcode: u16) {
-        let x: usize = ((opcode & 0x0F00) >> 8) as usize;
-        let y: usize = ((opcode & 0x00F0) >> 4) as usize;
-        let n: u8 = (opcode & 0x000F) as u8;
+        let address = opcode & 0x0FFF;
+        let x: usize = ((opcode & 0x0F00) >> 8) as usize & 0b00001111;
+        let y: usize = ((opcode & 0x00F0) >> 4) as usize & 0b00001111;
+        let nibble: u8 = (opcode & 0x000F) as u8;
         let nn: u8 = (opcode & 0x00FF) as u8;
-        let nnn = opcode & 0x0FFF;
 
         match opcode & 0xF000 {
             0x0000 => {
@@ -149,8 +151,8 @@ impl Chip8 {
                     _ => panic!("Unknown Opcode {}", opcode)
                 }
             }
-            0x1000 => self.opcode_jmp(nnn),
-            0x2000 => self.opcode_call_subroutine(nnn),
+            0x1000 => self.opcode_jmp(address),
+            0x2000 => self.opcode_call_subroutine(address),
             0x3000 => self.opcode_skip_if_vx_equals_nn(x, nn),
             0x4000 => self.opcode_skip_if_vx_diffs_nn(x, nn),
             0x5000 => self.opcode_skip_if_vx_equals_vy(x, y),
@@ -158,10 +160,10 @@ impl Chip8 {
             0x7000 => self.opcode_adds_nn_to_vx(x, nn),
             0x8000 => self.opcode_set_vx_to_vy(opcode, x, y),
             0x9000 => self.opcode_skips_if_vx_diffs_vy(x, y),
-            0xA000 => self.opcode_set_i_to_nnn(nnn),
-            0xB000 => self.opcode_jmp_nnn_plus_v0(nnn),
+            0xA000 => self.opcode_set_i_to_nnn(address),
+            0xB000 => self.opcode_jmp_nnn_plus_v0(address),
             0xC000 => self.opcode_set_vx_random(x, nn),
-            0xD000 => self.opcode_draw(x, y, n),
+            0xD000 => self.opcode_draw(x, y, nibble),
             0xE000 => {
                 match opcode & 0xFF {
                     0x9E => self.opcode_skip_key_pressed_in_vx(x),
@@ -189,6 +191,11 @@ impl Chip8 {
     }
 
     fn increment_pc(&mut self) {
+        if self.skip_increment_pc {
+            self.skip_increment_pc = false;
+            return;
+        }
+
         self.pc += 2;
     }
 }
