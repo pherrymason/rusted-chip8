@@ -109,9 +109,28 @@ impl Chip8 {
         self.play = false;
     }
 
-    fn tick(&mut self) {
-        let opcode: u16 = ((self.memory[self.pc as usize] as u16) << 8) + self.memory[(self.pc as usize) + 1] as u16;
+    pub fn run(&mut self) {
+        if self.play {
+            self.tick();
+        }
+    }
+
+    pub fn tick(&mut self) {
+        let h = self.memory[self.pc as usize];
+        let l = self.memory[self.pc as usize + 1];
+        let opcode: u16 = ((h as u16) << 8) + l as u16;
+
+        println!("PC: {:x} OPCODE:({:x}/{:x}) => {:x}", self.pc, h, l, opcode);
+
         self.execute_operation(opcode);
+
+        if self.timer_delay > 0 {
+            self.timer_delay -= 1;
+        }
+
+        if self.timer_sound > 0 {
+            self.timer_sound -= 1;
+        }
     }
 
     fn execute_operation(&mut self, opcode: u16) {
