@@ -1,6 +1,8 @@
 use rand::rngs::ThreadRng;
+use crate::chip8::display::Display;
 
 mod opcodes;
+mod display;
 
 struct Keypad {}
 
@@ -9,8 +11,6 @@ impl Keypad {
         return 0;
     }
 }
-
-struct Display {}
 
 const STACK_SIZE: usize = 200;
 const MEMORY_SIZE: usize = 4096;
