@@ -99,11 +99,60 @@ impl Chip8 {
         let random_number: u8 = self.rng.gen_range(0..=255);
         self.v[x] = random_number;
     }
+
+    // Draws a sprite at coordinate (VX,VY) that has a width of 8 pixels and a height of N pixels.
+    // Each row of 8 pixels is read as bit-coded starting form memory location I.
+    // I value doesn't change after the execution of this instruction
+    // VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn,
+    // and to 0 if that doesn't happen.
+    // All drawing is XOR drawing (i.e. it toggles the screen pixels)
+    // 0xDXYN
     pub fn opcode_draw(&mut self, x: usize, y: usize, n: u8) {
         self.v[0xF] = if self.draw_sprite(self.v[x], self.v[y], self.address_register, n) { 1 } else { 0 };
     }
-    pub fn draw_sprite(&mut self, x: u8, y: u8, i: u16, n: u8) -> bool {
-        return true;
+
+
+    /**
+     Display n-byte sprite starting at memory `address` at (x, y).
+     Returns true if there's a collision.
+
+     Eg.:
+     Assuming the following sprite in memory at address 0x21A:
+
+        Addr   Byte     Bits    Pixels
+        0x21A  0xF0   11110000  ****
+        0x21B  0x90   10010000  *  *
+        0x21C  0x90   10010000  *  *
+        0x21D  0x90   10010000  *  *
+        0x21E  0xF0   11110000  ****
+
+     Calling:
+
+        self.draw_sprite(2, 3, 0x21A, 5)
+
+     Will draw a big 0 on the display at (2, 3).
+     */
+    pub fn draw_sprite(&mut self, x: u8, y: u8, address: u16, height: u8) -> bool {
+        let mut collision = false;
+
+        let mut y_line = 0;
+        while y_line < height {
+            let pixel_memory_address = (address + y_line as u16) as usize;
+            let mut pixel = self.memory[pixel_memory_address];
+            let mut x_line: i8 = 7;
+            while x_line >= 0 {
+                if (pixel & 1) == 1 {
+                    if self.display.draw(x + x_line as u8, y + y_line) {
+                        collision = true;
+                    }
+                }
+                pixel >>= 1;
+                x_line -= 1;
+            }
+            y_line += 1;
+        }
+
+        return collision;
     }
     pub fn opcode_skip_key_pressed_in_vx(&mut self, x: usize) {
         if self.keypad.status(self.v[x]) == 1 {
