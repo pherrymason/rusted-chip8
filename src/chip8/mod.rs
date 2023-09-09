@@ -111,6 +111,8 @@ impl Chip8 {
         if self.play {
             self.tick();
         }
+
+        self.display.render();
     }
 
     pub fn tick(&mut self) {
