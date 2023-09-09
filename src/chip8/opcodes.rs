@@ -57,13 +57,13 @@ impl Chip8 {
                 } else {
                     self.v[0xF] = 0; // No carry
                 }
-                self.v[x] += self.v[y];
+                self.v[x] = self.v[x].wrapping_add(self.v[y]);
             }
             5 => {
                 // 8XY5	VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
                 //self.v[0xF] = if self.v[y] > self.v[x] {0} else {1};
                 self.v[0xF] = if self.v[x] >= self.v[y] { 1 } else { 0 };
-                self.v[x] -= self.v[y];
+                self.v[x] = self.v[x].wrapping_sub(self.v[y]);
             }
             6 => {
                 // 8XY6	Shifts VX right by one. VF is set to the value of the least significant bit of VX before the shift.[2]
@@ -73,7 +73,7 @@ impl Chip8 {
             7 => {
                 // 8XY7	Sets VX to (VY minus VX). VF is set to 0 when there's a borrow, and 1 when there isn't.
                 self.v[0xF] = if self.v[y] < self.v[x] { 0 } else { 1 };
-                self.v[x] = self.v[y] - self.v[x];
+                self.v[x] = self.v[y].wrapping_sub(self.v[x]);
             }
             0xE => {
                 self.v[0xF] = self.v[x] >> 7;
