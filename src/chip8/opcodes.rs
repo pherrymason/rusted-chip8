@@ -22,26 +22,26 @@ impl Chip8 {
         self.stack.push(self.pc + 2);
         self.pc = address;
     }
-    pub fn opcode_skip_if_vx_equals_nn(&mut self, x: u8, nn: u8) {
-        if self.v[x as usize] == nn {
+    pub fn opcode_skip_if_vx_equals_nn(&mut self, x: usize, nn: u8) {
+        if self.v[x] == nn {
             self.increment_pc();
         }
     }
-    pub fn opcode_skip_if_vx_diffs_nn(&mut self, x: u8, nn: u8) {
-        if self.v[x as usize] != nn {
+    pub fn opcode_skip_if_vx_diffs_nn(&mut self, x: usize, nn: u8) {
+        if self.v[x] != nn {
             self.increment_pc();
         }
     }
-    pub fn opcode_skip_if_vx_equals_vy(&mut self, x: u8, y: u8) {
-        if self.v[x as usize] == self.v[y as usize] {
+    pub fn opcode_skip_if_vx_equals_vy(&mut self, x: usize, y: usize) {
+        if self.v[x] == self.v[y] {
             self.increment_pc();
         }
     }
-    pub fn opcode_set_vx_to_nn(&mut self, x: u8, nn: u8) {
-        self.v[x as usize] = nn;
+    pub fn opcode_set_vx_to_nn(&mut self, x: usize, nn: u8) {
+        self.v[x] = nn;
     }
-    pub fn opcode_adds_nn_to_vx(&mut self, x: u8, nn: u8) {
-        self.v[x as usize] = (self.v[x as usize] + nn) & 0xFF;
+    pub fn opcode_adds_nn_to_vx(&mut self, x: usize, nn: u8) {
+        self.v[x] = (self.v[x] + nn) & 0xFF;
     }
     pub fn opcode_set_vx_to_vy(&mut self, opcode: u16, x: usize, y: usize) {
         match opcode & 0x0F {
