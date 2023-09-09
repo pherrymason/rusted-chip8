@@ -214,7 +214,8 @@ impl Chip8 {
     pub fn opcode_fill_v_with_memory(&mut self, x: usize) {
         let mut i: usize = 0;
         while i <= x {
-            self.v[self.address_register as usize] = (self.address_register + i as u16) as u8
+            self.v[i] = (self.address_register + i as u16) as u8;
+            i += 1;
         }
         self.address_register += x as u16 + 1;
     }
