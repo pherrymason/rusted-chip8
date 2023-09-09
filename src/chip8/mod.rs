@@ -134,11 +134,11 @@ impl Chip8 {
     }
 
     fn execute_operation(&mut self, opcode: u16) {
-        let X: u8 = ((opcode & 0x0F00) >> 8) as u8;
-        let Y: u8 = ((opcode & 0x00F0) >> 4) as u8;
-        let N: u8 = (opcode & 0x000F) as u8;
-        let NN: u8 = (opcode & 0x00FF) as u8;
-        let NNN = opcode & 0x0FFF;
+        let x: usize = ((opcode & 0x0F00) >> 8) as usize;
+        let y: usize = ((opcode & 0x00F0) >> 4) as usize;
+        let n: u8 = (opcode & 0x000F) as u8;
+        let nn: u8 = (opcode & 0x00FF) as u8;
+        let nnn = opcode & 0x0FFF;
 
         match opcode & 0xF000 {
             0x0000 => {
@@ -148,25 +148,28 @@ impl Chip8 {
                     0x00FF => self.set_schip_graphic_mode(),
                     _ => panic!("unknown opcode")
                 }
-            },
-            0x1000 => self.opcode_jmp(NNN),
-            0x2000 => self.opcode_call_subroutine(NNN),
-            0x3000 => self.opcode_skip_if_vx_equals_nn(X, NN),
-            0x4000 => self.opcode_skip_if_vx_diffs_nn(X, NN),
-            0x5000 => self.opcode_skip_if_vx_equals_vy(X, Y),
-            0x6000 => self.opcode_set_vx_to_nn(X, NN),
-            0x7000 => self.opcode_adds_nn_to_vx(X,NN),
-            0x8000 => self.opcode_set_vx_to_vy(opcode,X as usize,Y as usize),
-            0x9000 => self.opcode_skips_if_vx_diffs_vy(X as usize,Y as usize),
-            0xA000 => self.opcode_set_i_to_nnn(NNN),
-            0xB000 => self.opcode_jmp_nnn_plus_v0(NNN),
-            0xC000 => self.opcode_set_vx_random(X as usize, NN),
-            0xD000 => self.opcode_draw(X as usize, Y as usize, N),
+            }
+            0x1000 => self.opcode_jmp(nnn),
+            0x2000 => self.opcode_call_subroutine(nnn),
+            0x3000 => self.opcode_skip_if_vx_equals_nn(x, nn),
+            0x4000 => self.opcode_skip_if_vx_diffs_nn(x, nn),
+            0x5000 => self.opcode_skip_if_vx_equals_vy(x, y),
+            0x6000 => self.opcode_set_vx_to_nn(x, nn),
+            0x7000 => self.opcode_adds_nn_to_vx(x, nn),
+            0x8000 => self.opcode_set_vx_to_vy(opcode, x, y),
+            0x9000 => self.opcode_skips_if_vx_diffs_vy(x, y),
+            0xA000 => self.opcode_set_i_to_nnn(nnn),
+            0xB000 => self.opcode_jmp_nnn_plus_v0(nnn),
+            0xC000 => self.opcode_set_vx_random(x, nn),
+            0xD000 => self.opcode_draw(x, y, n),
             0xE000 => {
                 match opcode&0xFF {
                     0x9E => self.opcode_skip_key_pressed_in_vx(X as usize),
                     0xA1 => self.opcode_skip_key_not_pressed_in_vx(X as usize),
                     _ => panic!("Unhandled opcode")
+                match opcode & 0xFF {
+                    0x9E => self.opcode_skip_key_pressed_in_vx(x),
+                    0xA1 => self.opcode_skip_key_not_pressed_in_vx(x),
                 }
             }
             0xF000 => {
@@ -181,6 +184,16 @@ impl Chip8 {
                     0x55 => self.opcode_dump_v_to_memory(X as usize),
                     0x65 => self.opcode_fill_v_with_memory(X as usize),
                     _ => panic!("Unhandled opcode")
+                match opcode & 0xFF {
+                    0x07 => self.opcode_save_delay_to_vx(x),
+                    0x0A => self.opcode_wait_key(x),
+                    0x15 => self.opcode_save_vx_to_delay(x),
+                    0x18 => self.opcode_save_vx_to_sound_timer(x),
+                    0x1E => self.opcode_adds_vx_to_i(x),
+                    0x29 => self.opcode_set_i_with_vx(x),
+                    0x33 => self.opcode_save_bin_vx(x),
+                    0x55 => self.opcode_dump_v_to_memory(x),
+                    0x65 => self.opcode_fill_v_with_memory(x),
                 }
             }
             _ => println!("Unknown Opcode {}", opcode),
