@@ -21,7 +21,7 @@ const PROGRAM_SIZE: usize = MEMORY_SIZE - PROGRAM_START_LOCATION;
 pub struct Chip8 {
     keypad: Keypad,
     display: Display,
-    memory: [u8; MEMORY_SIZE],
+    memory: Vec<u8>,
     v: [u8; V_SIZE],
     address_register: u16,
     pc: u16,
@@ -42,6 +42,7 @@ impl Chip8 {
             keypad: Keypad {},
             display: Display {},
             memory: [0; MEMORY_SIZE],
+            memory: vec![0; PROGRAM_START_LOCATION],
             v: [0; 16],
             address_register: 0,
             pc: 0,
@@ -56,7 +57,7 @@ impl Chip8 {
     }
 
     pub fn reset(&mut self) {
-        self.memory = [0; MEMORY_SIZE];
+        self.memory = vec![0; 80];
         self.v = [0; 16];
         self.address_register = 0;
         self.pc = PROGRAM_START_LOCATION as u16;
@@ -99,12 +100,9 @@ impl Chip8 {
          */
     }
 
-    pub fn load(&mut self, program: [u8; PROGRAM_SIZE]) {
-        let mut i = 0;
-        while i <= PROGRAM_SIZE {
-            self.memory[PROGRAM_START_LOCATION + i] = program[i];
-            i+= 1;
-        }
+    pub fn load(&mut self, program: Vec<u8>) {
+        self.reset();
+        self.memory.extend_from_slice(&program);
     }
 
     pub fn start(&mut self) {
