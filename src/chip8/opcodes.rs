@@ -161,13 +161,13 @@ impl Chip8 {
     pub fn opcode_skip_key_pressed_in_vx(&mut self, x: usize) {
         if self.keypad.status(self.v[x] as usize) == 1 {
             self.increment_pc();
-            self.skip_increment_pc = true;
+            self.skip_increment_pc = false;
         }
     }
     pub fn opcode_skip_key_not_pressed_in_vx(&mut self, x: usize) {
         if self.keypad.status(self.v[x] as usize) == 0 {
             self.increment_pc();
-            self.skip_increment_pc = true;
+            self.skip_increment_pc = false;
         }
     }
     pub fn opcode_save_delay_to_vx(&mut self, x: usize) {
@@ -599,7 +599,7 @@ mod tests {
         emu.opcode_skip_key_pressed_in_vx(0);
 
         assert_eq!(emu.pc, 0x202);
-        assert_eq!(emu.skip_increment_pc, true);
+        assert_eq!(emu.skip_increment_pc, false);
     }
 
     #[test]
@@ -626,7 +626,7 @@ mod tests {
         emu.opcode_skip_key_not_pressed_in_vx(0);
 
         assert_eq!(emu.pc, 0x202);
-        assert_eq!(emu.skip_increment_pc, true);
+        assert_eq!(emu.skip_increment_pc, false);
     }
 
     #[test]
