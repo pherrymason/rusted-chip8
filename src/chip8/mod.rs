@@ -1,16 +1,12 @@
 use rand::rngs::ThreadRng;
 use crate::chip8::display::Display;
+use crate::chip8::keypad::Keypad;
 
 mod opcodes;
 mod display;
+mod keypad;
 
-struct Keypad {}
 
-impl Keypad {
-    pub fn status(&self, key: u8) -> u8 {
-        return 0;
-    }
-}
 
 const STACK_SIZE: usize = 16;
 const MEMORY_SIZE: usize = 4096;
@@ -39,7 +35,7 @@ pub struct Chip8 {
 impl Chip8 {
     pub fn new() -> Chip8 {
         Chip8 {
-            keypad: Keypad {},
+            keypad: Keypad::new(),
             display: Display::new(),
             memory: vec![0; PROGRAM_START_LOCATION],
             v: [0; 16],

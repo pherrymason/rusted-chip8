@@ -117,24 +117,24 @@ impl Chip8 {
 
 
     /**
-     Display n-byte sprite starting at memory `address` at (x, y).
-     Returns true if there's a collision.
+    Display n-byte sprite starting at memory `address` at (x, y).
+    Returns true if there's a collision.
 
-     Eg.:
-     Assuming the following sprite in memory at address 0x21A:
+    Eg.:
+    Assuming the following sprite in memory at address 0x21A:
 
-        Addr   Byte     Bits    Pixels
-        0x21A  0xF0   11110000  ****
-        0x21B  0x90   10010000  *  *
-        0x21C  0x90   10010000  *  *
-        0x21D  0x90   10010000  *  *
-        0x21E  0xF0   11110000  ****
+       Addr   Byte     Bits    Pixels
+       0x21A  0xF0   11110000  ****
+       0x21B  0x90   10010000  *  *
+       0x21C  0x90   10010000  *  *
+       0x21D  0x90   10010000  *  *
+       0x21E  0xF0   11110000  ****
 
-     Calling:
+    Calling:
 
-        self.draw_sprite(2, 3, 0x21A, 5)
+       self.draw_sprite(2, 3, 0x21A, 5)
 
-     Will draw a big 0 on the display at (2, 3).
+    Will draw a big 0 on the display at (2, 3).
      */
     pub fn draw_sprite(&mut self, x: u8, y: u8, address: u16, height: u8) -> bool {
         let mut collision = false;
@@ -159,13 +159,15 @@ impl Chip8 {
         return collision;
     }
     pub fn opcode_skip_key_pressed_in_vx(&mut self, x: usize) {
-        if self.keypad.status(self.v[x]) == 1 {
+        if self.keypad.status(self.v[x] as usize) == 1 {
             self.increment_pc();
+            self.skip_increment_pc = true;
         }
     }
     pub fn opcode_skip_key_not_pressed_in_vx(&mut self, x: usize) {
-        if self.keypad.status(self.v[x]) == 0 {
+        if self.keypad.status(self.v[x] as usize) == 0 {
             self.increment_pc();
+            self.skip_increment_pc = true;
         }
     }
     pub fn opcode_save_delay_to_vx(&mut self, x: usize) {
@@ -174,7 +176,7 @@ impl Chip8 {
     pub fn opcode_wait_key(&mut self, x: usize) {
         let mut keypress = false;
         for i in 0..=V_SIZE {
-            if self.keypad.status(i as u8) != 0 {
+            if self.keypad.status(i) != 0 {
                 self.v[x] = i as u8;
                 keypress = true
             }
@@ -440,7 +442,7 @@ mod tests {
         emu.v[0xF] = 1;
         emu.opcode_set_vx_to_vy(0x8006, 0, 1);
 
-        assert_eq!(emu.v[0], 11>>1);
+        assert_eq!(emu.v[0], 11 >> 1);
         assert_eq!(emu.v[0xF], 1, "Flag should be enabled");
     }
 
@@ -451,7 +453,7 @@ mod tests {
         emu.v[0xF] = 1;
         emu.opcode_set_vx_to_vy(0x8006, 0, 1);
 
-        assert_eq!(emu.v[0], 11>>1);
+        assert_eq!(emu.v[0], 11 >> 1);
         assert_eq!(emu.v[0xF], 0, "Flag should be disabled");
     }
 
@@ -525,6 +527,7 @@ mod tests {
         emu.opcode_skips_if_vx_diffs_vy(0, 1);
 
         assert_eq!(emu.pc, 0x202);
+        assert_eq!(emu.skip_increment_pc, true);
     }
 
     #[test]
@@ -536,6 +539,7 @@ mod tests {
         emu.opcode_skips_if_vx_diffs_vy(0, 1);
 
         assert_eq!(emu.pc, 0x200);
+        assert_eq!(emu.skip_increment_pc, false);
     }
 
     #[test]
@@ -546,5 +550,93 @@ mod tests {
         emu.opcode_set_i_to_nnn(0xFFF);
 
         assert_eq!(emu.address_register, 0xFFF);
+    }
+
+    #[test]
+    fn test_bnnn_jumps_to_location() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 0xA;
+
+        emu.opcode_jmp_nnn_plus_v0(0x400);
+
+        assert_eq!(emu.pc, 0x40A);
+        assert_eq!(emu.skip_increment_pc, true);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_cnnn_generate_random_value() {
+        let mut emu = a_chip8();
+
+        // Implement by mocking random generator.
+    }
+
+    #[test]
+    #[ignore]
+    fn test_dnnn_displays_sprite() {
+        let mut emu = a_chip8();
+        emu.pc = 0x200;
+        emu.v[0] = 0xA;
+
+        emu.opcode_jmp_nnn_plus_v0(0x400);
+
+        assert_eq!(emu.pc, 0x40A);
+        assert_eq!(emu.skip_increment_pc, true);
+    }
+
+    #[test]
+    fn test_ex9e_should_skip_if_key_is_pressed() {
+        let mut emu  = a_chip8();
+        let key_index = 1;
+        emu.v[0] = key_index;
+        emu.pc = 0x200;
+        emu.keypad.press(key_index as usize);
+
+        emu.opcode_skip_key_pressed_in_vx(0);
+
+        assert_eq!(emu.pc, 0x202);
+        assert_eq!(emu.skip_increment_pc, true);
+    }
+
+    #[test]
+    fn test_ex9e_should_not_skip_if_key_is_not_pressed() {
+        let mut emu  = a_chip8();
+        let key_index = 1;
+        emu.v[0] = key_index;
+        emu.pc = 0x200;
+        emu.keypad.release(key_index as usize);
+
+        emu.opcode_skip_key_pressed_in_vx(0);
+
+        assert_eq!(emu.pc, 0x200);
+        assert_eq!(emu.skip_increment_pc, false);
+    }
+    #[test]
+    fn test_exa1_should_skip_if_key_is_not_pressed() {
+        let mut emu  = a_chip8();
+        let key_index = 1;
+        emu.v[0] = key_index;
+        emu.pc = 0x200;
+        emu.keypad.release(key_index as usize);
+
+        emu.opcode_skip_key_not_pressed_in_vx(0);
+
+        assert_eq!(emu.pc, 0x202);
+        assert_eq!(emu.skip_increment_pc, true);
+    }
+
+    #[test]
+    fn test_exa1_should_not_skip_if_key_is_pressed() {
+        let mut emu  = a_chip8();
+        let key_index = 1;
+        emu.v[0] = key_index;
+        emu.pc = 0x200;
+        emu.keypad.press(key_index as usize);
+
+        emu.opcode_skip_key_not_pressed_in_vx(0);
+
+        assert_eq!(emu.pc, 0x200);
+        assert_eq!(emu.skip_increment_pc, false);
     }
 }
