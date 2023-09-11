@@ -23,9 +23,13 @@ impl Display {
     }
 
     pub fn draw(&mut self, x: u8, y: u8) -> bool {
-        let pixel_coordinate = (y as usize * NATIVE_SCREEN_WIDTH) + x as usize;
+        // Correct x and y
+        let corrected_x = x % (NATIVE_SCREEN_WIDTH as u8 + 1);
+        let corrected_y = y % (NATIVE_SCREEN_HEIGHT as u8 + 1);
+
+        let pixel_coordinate: usize = (corrected_y as usize * (NATIVE_SCREEN_WIDTH - 1)) + corrected_x as usize;
         self.screen[pixel_coordinate] ^= 1;
-        let active: u8 = self.screen[pixel_coordinate] ^ 1;
+        let active: u8 = self.screen[pixel_coordinate as usize] ^ 1;
 
         return if active == 1 { true } else { false };
     }
@@ -35,8 +39,8 @@ impl Display {
         while y < NATIVE_SCREEN_HEIGHT {
             let mut x = 0;
             while x < NATIVE_SCREEN_WIDTH {
-                let pixel_coordinate = (y * NATIVE_SCREEN_WIDTH) + x;
-                let active = self.screen[pixel_coordinate];
+                let pixel_coordinate = (y * (NATIVE_SCREEN_WIDTH - 1)) + x;
+                let active = self.screen[pixel_coordinate as usize];
                 draw_rectangle(
                     x as f32 * self.scale,
                     y as f32 * self.scale,
