@@ -175,16 +175,18 @@ impl Chip8 {
     }
     pub fn opcode_wait_key(&mut self, x: usize) {
         let mut keypress = false;
-        for i in 0..=V_SIZE {
+        for i in 0..=(V_SIZE - 1) {
             if self.keypad.status(i) != 0 {
                 self.v[x] = i as u8;
-                keypress = true
+                keypress = true;
+                break;
             }
         }
 
-        //if (!keypress) {
-        //    self.pc -= 2; // force try again
-        //}
+        if !keypress {
+            //self.pc -= 2; // force try again
+            self.skip_increment_pc = true;
+        }
     }
     pub fn opcode_save_vx_to_delay(&mut self, x: usize) {
         self.timer_delay = self.v[x];
@@ -193,7 +195,7 @@ impl Chip8 {
         self.timer_sound = self.v[x];
     }
     pub fn opcode_adds_vx_to_i(&mut self, x: usize) {
-        self.address_register += self.v[x] as u16;
+        self.address_register = self.address_register.wrapping_add(self.v[x] as u16);
         self.v[0xF] = if (self.address_register + self.v[x] as u16) > 0xFFF { 1 } else { 0 };
     }
 
@@ -208,9 +210,10 @@ impl Chip8 {
         self.memory[self.address_register as usize + 1] = (self.v[x] / 10) % 10;
         self.memory[self.address_register as usize + 2] = (self.v[x] % 100) % 10;
     }
+
     pub fn opcode_dump_v_to_memory(&mut self, x: usize) {
         let mut i: usize = 0;
-        while i <= x {
+        while i < x {
             self.memory[self.address_register as usize + i] = self.v[i];
             i += 1;
         }
@@ -220,7 +223,7 @@ impl Chip8 {
     // FX65	Fills V0 to VX with values from memory starting at address I.[4]
     pub fn opcode_fill_v_with_memory(&mut self, x: usize) {
         let mut i: usize = 0;
-        while i <= x {
+        while i < x {
             self.v[i] = (self.address_register + i as u16) as u8;
             i += 1;
         }
@@ -638,5 +641,137 @@ mod tests {
 
         assert_eq!(emu.pc, 0x200);
         assert_eq!(emu.skip_increment_pc, false);
+    }
+
+    #[test]
+    fn test_fx07_value_of_d7_placed_in_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0;
+        emu.timer_delay = 10;
+
+        emu.opcode_save_delay_to_vx(0);
+
+        assert_eq!(emu.v[0], 10);
+    }
+
+    #[test]
+    fn test_fx0a_should_wait_while_no_key_is_pressed() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0;
+        emu.pc = 0x200;
+        emu.keypad.release(0);
+
+        emu.opcode_wait_key(0);
+
+        assert_eq!(emu.skip_increment_pc, true);
+    }
+
+    #[test]
+    fn test_fx0a_continue_if_key_is_pressed() {
+        let mut emu = a_chip8();
+        emu.v[0] = 0;
+        emu.pc = 0x200;
+        emu.keypad.press(0);
+
+        emu.opcode_wait_key(0);
+
+        assert_eq!(emu.skip_increment_pc, false);
+    }
+
+    #[test]
+    fn test_fx15_should_set_delay_timer_to_the_value_of_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 33;
+        emu.timer_delay = 0;
+
+        emu.opcode_save_vx_to_delay(0);
+
+        assert_eq!(emu.timer_delay, 33);
+    }
+
+    #[test]
+    fn test_fx18_should_set_sound_timer_to_the_value_of_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 33;
+        emu.timer_sound = 0;
+
+        emu.opcode_save_vx_to_sound_timer(0);
+
+        assert_eq!(emu.timer_sound, 33);
+    }
+
+    #[test]
+    fn test_fx1e_should_add_i_and_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 33;
+        emu.address_register = 2;
+
+        emu.opcode_adds_vx_to_i(0);
+
+        assert_eq!(emu.address_register, 35);
+    }
+
+    #[test]
+    fn test_fx1e_should_add_i_and_vx_with_wrap_around() {
+        let mut emu = a_chip8();
+        emu.v[0] = 1;
+        emu.address_register = 0xFFFF;
+
+        emu.opcode_adds_vx_to_i(0);
+
+        assert_eq!(emu.address_register, 0);
+    }
+
+    #[test]
+    fn test_fx29_should_set_i_with_location_of_sprite_located_in_vx() {
+        let mut emu = a_chip8();
+        emu.v[0] = 1;
+        emu.address_register = 0;
+
+        emu.opcode_set_i_with_vx(0);
+
+        assert_eq!(emu.address_register, 5);
+    }
+
+    #[test]
+    fn test_fx33_should_store_bcd_representation_of_vx_in_memory_locations() {
+        let mut emu = a_chip8();
+        emu.v[0] = 123;
+        emu.address_register = 0;
+        emu.memory[0] = 0;
+        emu.memory[1] = 0;
+        emu.memory[2] = 0;
+
+        emu.opcode_save_bin_vx(0);
+
+        assert_eq!(emu.memory[0], 1);
+        assert_eq!(emu.memory[1], 2);
+        assert_eq!(emu.memory[2], 3);
+    }
+
+    #[test]
+    fn test_fx55_dump_v_in_memory_location() {
+        let mut emu = a_chip8();
+        let vec= vec![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+        let mut array = [0;16];
+            array.copy_from_slice(&vec);
+        emu.v = array;
+
+        emu.opcode_dump_v_to_memory(16);
+
+        for i in 0..=15 {
+            assert_eq!(emu.memory[i], i as u8 + 1);
+        }
+    }
+
+    #[test]
+    fn test_fx65_should_fill_v_with_memory() {
+        let mut emu = a_chip8();
+        emu.address_register = 0;
+        for i in 0..=15 {
+            emu.memory[i] = i as u8;
+        }
+
+        emu.opcode_fill_v_with_memory(16);
     }
 }
